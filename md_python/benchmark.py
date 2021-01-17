@@ -9,22 +9,25 @@ import time
 import simple_LJ
 
 methods = simple_LJ.SUPPORTED_METHODS.keys()
-cube_sizes = range(2, 11)
+cube_sizes = range(2, 21)
 n_steps = 1000
 
 result = {}
 print(f"Running benchmark for {n_steps} steps each")
 for method in methods:
     result[method] = {}
-    for csize in cube_sizes:
+    # run one step to let jit compile if needed
+    simple_LJ.run_md(2, 1, method, verbose=False)
+    for csize in cube_sizes:    
         t0 = time.time()
         simple_LJ.run_md(csize, n_steps, method, verbose=False)
         cost = time.time() - t0
         print(f"{method:4s} method | {csize:3d}^3 = {csize**3:<4d} atoms | cost: {cost:7.3f} s")
         result[method][csize] = cost
         if cost > 10:
-            print("Skipping the rest of larger sizes as it takes too long")
+            print("Skipped larger sizes as it takes too long")
             break
+    print('-'*50)
 
 # below are ploting part
 import matplotlib.pyplot as plt
@@ -47,11 +50,11 @@ axins.set_xticklabels([rf'{n}$^3$' for n in cube_sizes])
 axins.set_xlim(0, 150)
 axins.set_ylim(0, 0.6)
 
-plt.xlim(0, 1050)
-plt.ylim(0, 30)
 plt.legend()
 ax.indicate_inset_zoom(axins)
-plt.xticks([n**3 for n in cube_sizes], [rf'{n}$^3$' for n in cube_sizes])
+plt.xticks([n**3 for n in cube_sizes if n > 4], [rf'{n}$^3$' for n in cube_sizes if n > 4])
+plt.xlim(0, 2250)
+plt.ylim(0, 30)
 plt.xlabel(r'N atoms (size$^3$)')
 plt.ylabel('Time cost (seconds)')
 plt.title(f'Benchmark with {n_steps} steps of LJ simulation')

@@ -1,31 +1,59 @@
 Running benchmark for 1000 steps each
-ref  method |   2^3 = 8    atoms | cost:   0.296 s
-ref  method |   3^3 = 27   atoms | cost:   3.592 s
-ref  method |   4^3 = 64   atoms | cost:  20.479 s
-Skipping the rest of larger sizes as it takes too long
-jit  method |   2^3 = 8    atoms | cost:   0.024 s
-jit  method |   3^3 = 27   atoms | cost:   0.089 s
-jit  method |   4^3 = 64   atoms | cost:   0.491 s
-jit  method |   5^3 = 125  atoms | cost:   1.859 s
-jit  method |   6^3 = 216  atoms | cost:   5.565 s
-jit  method |   7^3 = 343  atoms | cost:  14.063 s
-Skipping the rest of larger sizes as it takes too long
-np   method |   2^3 = 8    atoms | cost:   0.025 s
-np   method |   3^3 = 27   atoms | cost:   0.045 s
-np   method |   4^3 = 64   atoms | cost:   0.126 s
-np   method |   5^3 = 125  atoms | cost:   0.389 s
-np   method |   6^3 = 216  atoms | cost:   1.096 s
-np   method |   7^3 = 343  atoms | cost:   2.715 s
-np   method |   8^3 = 512  atoms | cost:   6.413 s
-np   method |   9^3 = 729  atoms | cost:  12.661 s
-Skipping the rest of larger sizes as it takes too long
-gpu  method |   2^3 = 8    atoms | cost:   0.381 s
-gpu  method |   3^3 = 27   atoms | cost:   0.360 s
-gpu  method |   4^3 = 64   atoms | cost:   0.362 s
-gpu  method |   5^3 = 125  atoms | cost:   0.362 s
-gpu  method |   6^3 = 216  atoms | cost:   0.371 s
-gpu  method |   7^3 = 343  atoms | cost:   0.860 s
-gpu  method |   8^3 = 512  atoms | cost:   1.822 s
-gpu  method |   9^3 = 729  atoms | cost:   3.815 s
-gpu  method |  10^3 = 1000 atoms | cost:   7.264 s
+Cref method |   2^3 = 8    atoms | cost:   0.321 s
+Cref method |   3^3 = 27   atoms | cost:   3.894 s
+Cref method |   4^3 = 64   atoms | cost:  21.948 s
+Skipped larger sizes as it takes too long
+--------------------------------------------------
+Cjit method |   2^3 = 8    atoms | cost:   0.009 s
+Cjit method |   3^3 = 27   atoms | cost:   0.086 s
+Cjit method |   4^3 = 64   atoms | cost:   0.467 s
+Cjit method |   5^3 = 125  atoms | cost:   1.777 s
+Cjit method |   6^3 = 216  atoms | cost:   5.395 s
+Cjit method |   7^3 = 343  atoms | cost:  13.768 s
+Skipped larger sizes as it takes too long
+--------------------------------------------------
+Cnpy method |   2^3 = 8    atoms | cost:   0.025 s
+Cnpy method |   3^3 = 27   atoms | cost:   0.048 s
+Cnpy method |   4^3 = 64   atoms | cost:   0.127 s
+Cnpy method |   5^3 = 125  atoms | cost:   0.395 s
+Cnpy method |   6^3 = 216  atoms | cost:   1.232 s
+Cnpy method |   7^3 = 343  atoms | cost:   2.802 s
+Cnpy method |   8^3 = 512  atoms | cost:   6.257 s
+Cnpy method |   9^3 = 729  atoms | cost:  13.558 s
+Skipped larger sizes as it takes too long
+--------------------------------------------------
+Gvec method |   2^3 = 8    atoms | cost:   0.373 s
+Gvec method |   3^3 = 27   atoms | cost:   0.384 s
+Gvec method |   4^3 = 64   atoms | cost:   0.380 s
+Gvec method |   5^3 = 125  atoms | cost:   0.378 s
+Gvec method |   6^3 = 216  atoms | cost:   0.369 s
+Gvec method |   7^3 = 343  atoms | cost:   0.869 s
+Gvec method |   8^3 = 512  atoms | cost:   1.833 s
+Gvec method |   9^3 = 729  atoms | cost:   3.870 s
+Gvec method |  10^3 = 1000 atoms | cost:   7.362 s
+Gvec method |  11^3 = 1331 atoms | cost:   9.820 s
+Gvec method |  12^3 = 1728 atoms | cost:  12.803 s
+Skipped larger sizes as it takes too long
+--------------------------------------------------
+Gknl method |   2^3 = 8    atoms | cost:   0.092 s
+Gknl method |   3^3 = 27   atoms | cost:   0.095 s
+Gknl method |   4^3 = 64   atoms | cost:   0.095 s
+Gknl method |   5^3 = 125  atoms | cost:   0.094 s
+Gknl method |   6^3 = 216  atoms | cost:   0.151 s
+Gknl method |   7^3 = 343  atoms | cost:   0.239 s
+Gknl method |   8^3 = 512  atoms | cost:   0.354 s
+Gknl method |   9^3 = 729  atoms | cost:   0.503 s
+Gknl method |  10^3 = 1000 atoms | cost:   0.690 s
+Gknl method |  11^3 = 1331 atoms | cost:   0.915 s
+Gknl method |  12^3 = 1728 atoms | cost:   1.269 s
+Gknl method |  13^3 = 2197 atoms | cost:   1.637 s
+Gknl method |  14^3 = 2744 atoms | cost:   2.018 s
+Gknl method |  15^3 = 3375 atoms | cost:   2.775 s
+Gknl method |  16^3 = 4096 atoms | cost:   3.369 s
+Gknl method |  17^3 = 4913 atoms | cost:   4.787 s
+Gknl method |  18^3 = 5832 atoms | cost:   5.677 s
+Gknl method |  19^3 = 6859 atoms | cost:   8.161 s
+Gknl method |  20^3 = 8000 atoms | cost:  11.181 s
+Skipped larger sizes as it takes too long
+--------------------------------------------------
 Result ploted as benchmark.pdf

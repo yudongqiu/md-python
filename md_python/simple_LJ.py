@@ -42,7 +42,7 @@ def ref_LJ(coords):
             forces[j] -= f * dc
     return forces
 
-@jit(nopython=True, cache=True)
+@jit(nopython=True)
 def ref_LJ_jit(coords):
     """
     reference method optimized by numba.jit
@@ -108,22 +108,25 @@ def numpy_LJ(coords):
     # contract C diff with f_norm to get the final force matrix
     return np.einsum('ijk,ij->ik', c_diff, f_lj_mat)
 
+###############################################################
+# Methods to calculate the LJ force and perform a step on GPU #
+###############################################################
 
 @guvectorize(['void(float32[:], float32[:,:], float32[:])'], '(n),(m,n)->(n)', target='cuda')
 def cuda_LJ_step(this_coord, coords, prev_coord):
     """
-    Vectorized ufunc for computing force on GPU
+    Vectorized ufunc for running on GPU
     Each run computes force for one atom then update its coord
 
     Inputs
     ------
     this_coord: [x, y, z] for this atom
     coords: matrix of shape (N, 3), for coordinates of all atoms
-    out: [fx, fy, fz] - force on this atom
+    prev_coord: [x, y, z] for this atom, passed in then overwritten by the next coords
 
     Returns
     -------
-    This function has no return, but writes into the provided out matrix
+    This function has no return, but writes into the provided prev_coord matrix
     """
     noa = len(coords)
     # build force
@@ -151,9 +154,75 @@ def cuda_LJ_step(this_coord, coords, prev_coord):
     prev_coord[1] = this_coord[1]*2 + dy - prev_coord[1]
     prev_coord[2] = this_coord[2]*2 + dz - prev_coord[2]
 
-#########################
-# Integration methods
-#########################
+def cuda_LJ_kernal_step(coords, _, prev_coords):
+    """
+    Function to launch cuda kernal to perform one step
+    Mainly for keeping the interface consistent with cuda_LJ_step
+    
+    Inputs
+    ------
+    coords: matrix of shape (N, 3), for coordinates of all atoms
+    _: not used, only for keeping the interface consistent with cuda_LJ_step
+    prev_coords: matrix of shape (N, 3), passed in as coords from last step, then overwritten by the next coords
+
+    Returns
+    -------
+    This function has no return, but writes into the provided prev_coords matrix
+    """
+    # parallelize the gpu kernal runs in 1D
+    threadsperblock = 32 # optimized
+    blockspergrid = (len(coords) + (threadsperblock - 1)) // threadsperblock
+    cuda_LJ_kernal[blockspergrid, threadsperblock](coords, prev_coords)
+
+@cuda.jit
+def cuda_LJ_kernal(coords, prev_coords):
+    """
+    Kernal function for computing one verlet step on GPU
+    Each run computes force for one atom then update its coord
+
+    Inputs
+    ------
+    coords: matrix of shape (N, 3), for coordinates of all atoms
+    prev_coords: matrix of shape (N, 3), passed in as coords from last step, then overwritten by the next coords
+
+    Returns
+    -------
+    This function has no return, but writes into the provided prev_coords matrix
+    """
+    noa = len(coords)
+    pos = cuda.grid(1)
+    # check boundaries
+    if pos >= noa:
+        return
+    this_coord = coords[pos]
+    # build force
+    fx = 0.0
+    fy = 0.0
+    fz = 0.0
+    for i in range(noa):
+        dx = this_coord[0] - coords[i][0]
+        dy = this_coord[1] - coords[i][1]
+        dz = this_coord[2] - coords[i][2]
+        r2 = dx**2 + dy**2 + dz**2
+        # prevent self interaction
+        if r2 != 0:
+            f = (-12 / r2**7 * s6 + 6 / r2**4) * 4 * epsilon * s6
+            fx += f * dx
+            fy += f * dy
+            fz += f * dz
+    # compute dr
+    dx = fx * step_length
+    dy = fy * step_length
+    dz = fz * step_length
+    # apply verlet update
+    # output is written to prev_coord
+    prev_coords[pos, 0] = this_coord[0]*2 + dx - prev_coords[pos, 0]
+    prev_coords[pos, 1] = this_coord[1]*2 + dy - prev_coords[pos, 1]
+    prev_coords[pos, 2] = this_coord[2]*2 + dz - prev_coords[pos, 2]
+
+#######################################
+# Simulation with integration methods #
+#######################################
 
 def sim_verlet(force_func, coords, n_steps, save_traj=False, verbose=True):
     """
@@ -202,14 +271,16 @@ def sim_verlet_gpu(step_func, coords, n_steps, save_traj=False, verbose=True):
         coords_gpu, prev_coords_gpu = prev_coords_gpu, coords_gpu
         # print progress and optionally save the traj
         if t % 100 == 0:
-            # this call executes all the gpu functions and bring the state to sync
-            cuda.synchronize()
             if verbose:
+                # blocking call to finish GPU execution
+                cuda.synchronize()
                 print(f'{t:8d} steps complete', end='\r')
             if save_traj:
-                # copy coords from gpu to host memory
+                # copy coords from gpu to host memory, blocking
                 coords_gpu.copy_to_host(coords)
                 save_xyz(coords, outfile)
+    # ensure everything on GPU is done
+    cuda.synchronize()
     if save_traj:
         outfile.close()
 
@@ -222,14 +293,16 @@ def save_xyz(coords, outputfile):
     for i in coords*5:
         outputfile.write('Cu %10.7f %10.7f %10.7f\n'%(i[0],i[1],i[2]))
 
+# all supported methods
 SUPPORTED_METHODS = {
-    'ref': (ref_LJ, sim_verlet),
-    'jit': (ref_LJ_jit, sim_verlet),
-    'np': (numpy_LJ, sim_verlet),
-    'gpu': (cuda_LJ_step, sim_verlet_gpu),
+    'Cref': (ref_LJ, sim_verlet),
+    'Cjit': (ref_LJ_jit, sim_verlet),
+    'Cnpy': (numpy_LJ, sim_verlet),
+    'Gvec': (cuda_LJ_step, sim_verlet_gpu),
+    'Gknl': (cuda_LJ_kernal_step, sim_verlet_gpu),
 }
 
-def run_md(cube_size=3, n_steps=10000, method="ref", save_traj=False, verbose=True):
+def run_md(cube_size, n_steps, method, save_traj=False, verbose=True):
     """
     master function to perform MD simulation, using verlet integration
     """
@@ -243,7 +316,7 @@ def run_md(cube_size=3, n_steps=10000, method="ref", save_traj=False, verbose=Tr
     t0 = time.time()
     if verbose:
         print(f'Running simulation of {n_steps} steps with {method} method')
-    # run the
+    # run the simulation
     integration_func(force_func, coords, n_steps, save_traj=save_traj, verbose=verbose)
     t1 = time.time()
     if verbose:
@@ -259,7 +332,7 @@ def main():
     parser.add_argument('-s', '--save_traj', default=False, action='store_true', help='Save trajectory every 100 step as traj.xyz')
     args = parser.parse_args()
 
-    run_md(cube_size=args.cube_size, n_steps=args.n_steps, method=args.method, save_traj=args.save_traj)
+    run_md(args.cube_size, args.n_steps, args.method, save_traj=args.save_traj)
 
 if __name__ == "__main__":
     main()
