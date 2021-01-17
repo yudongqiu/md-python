@@ -193,8 +193,6 @@ def sim_verlet_gpu(step_func, coords, n_steps, save_traj=False, verbose=True):
     # allocate GPU memory for a few matrices
     coords_gpu = cuda.to_device(coords)
     prev_coords_gpu = cuda.to_device(coords)
-    temp_gpu = cuda.device_array_like(coords)
-    force_gpu = cuda.device_array_like(coords)
     # start loop
     for t in range(1, n_steps+1):
         # force calculation and apply update are combine here to improve performance
@@ -214,17 +212,6 @@ def sim_verlet_gpu(step_func, coords, n_steps, save_traj=False, verbose=True):
                 save_xyz(coords, outfile)
     if save_traj:
         outfile.close()
-
-@guvectorize(['void(float32[:], float32[:], float32[:])'], '(n),(n)->(n)', target='cuda')
-def apply_update_gpu(coord, force, prev_coord):
-    '''
-    update coordinates using verlet method
-    after update, the new coords is written into prev_coords_gpu
-    '''
-    # update x,y,z coordinates
-    for k in range(3):
-        dr = force[k] * step_length
-        prev_coord[k] = coord[k]*2 + dr - prev_coord[k]
 
 def save_xyz(coords, outputfile):
     """
