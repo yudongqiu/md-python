@@ -110,10 +110,10 @@ def numpy_LJ(coords):
 
 
 @guvectorize(['void(float32[:], float32[:,:], float32[:])'], '(n),(m,n)->(n)', target='cuda')
-def cuda_LJ(this_coord, coords, out):
+def cuda_LJ_step(this_coord, coords, prev_coord):
     """
     Vectorized ufunc for computing force on GPU
-    Each run computes force for one atom
+    Each run computes force for one atom then update its coord
 
     Inputs
     ------
@@ -126,10 +126,10 @@ def cuda_LJ(this_coord, coords, out):
     This function has no return, but writes into the provided out matrix
     """
     noa = len(coords)
-    # clear out force
-    out[0] = 0.0
-    out[1] = 0.0
-    out[2] = 0.0
+    # build force
+    fx = 0.0
+    fy = 0.0
+    fz = 0.0
     for i in range(noa):
         dx = this_coord[0] - coords[i][0]
         dy = this_coord[1] - coords[i][1]
@@ -138,16 +138,18 @@ def cuda_LJ(this_coord, coords, out):
         # prevent self interaction
         if r2 != 0:
             f = (-12 / r2**7 * s6 + 6 / r2**4) * 4 * epsilon * s6
-            out[0] += f * dx
-            out[1] += f * dy
-            out[2] += f * dz
-
-SUPPORTED_METHODS = {
-    'ref': ref_LJ,
-    'jit': ref_LJ_jit,
-    'np': numpy_LJ,
-    'gpu': cuda_LJ,
-}
+            fx += f * dx
+            fy += f * dy
+            fz += f * dz
+    # compute dr
+    dx = fx * step_length
+    dy = fy * step_length
+    dz = fz * step_length
+    # apply verlet update
+    # output is written to prev_coord
+    prev_coord[0] = this_coord[0]*2 + dx - prev_coord[0]
+    prev_coord[1] = this_coord[1]*2 + dy - prev_coord[1]
+    prev_coord[2] = this_coord[2]*2 + dz - prev_coord[2]
 
 #########################
 # Integration methods
@@ -181,7 +183,7 @@ def sim_verlet(force_func, coords, n_steps, save_traj=False, verbose=True):
     if save_traj:
         outfile.close()
 
-def sim_verlet_gpu(force_func, coords, n_steps, save_traj=False, verbose=True):
+def sim_verlet_gpu(step_func, coords, n_steps, save_traj=False, verbose=True):
     """
     CUDA version of the verlet integration simulation
     Optimized to improve performance by avoid copying between host and device memory
@@ -195,11 +197,9 @@ def sim_verlet_gpu(force_func, coords, n_steps, save_traj=False, verbose=True):
     force_gpu = cuda.device_array_like(coords)
     # start loop
     for t in range(1, n_steps+1):
-        # compute a (Nx3) matrix of force, each row for an atom
-        force_func(coords_gpu, coords_gpu, force_gpu)
-        # apply update on GPU without copying back to CPU
+        # force calculation and apply update are combine here to improve performance
         # note: after update, the new coords is written into prev_coords_gpu
-        apply_update_gpu(coords_gpu, force_gpu, prev_coords_gpu)
+        step_func(coords_gpu, coords_gpu, prev_coords_gpu)
         # switch reference
         coords_gpu, prev_coords_gpu = prev_coords_gpu, coords_gpu
         # print progress and optionally save the traj
@@ -235,6 +235,13 @@ def save_xyz(coords, outputfile):
     for i in coords*5:
         outputfile.write('Cu %10.7f %10.7f %10.7f\n'%(i[0],i[1],i[2]))
 
+SUPPORTED_METHODS = {
+    'ref': (ref_LJ, sim_verlet),
+    'jit': (ref_LJ_jit, sim_verlet),
+    'np': (numpy_LJ, sim_verlet),
+    'gpu': (cuda_LJ_step, sim_verlet_gpu),
+}
+
 def run_md(cube_size=3, n_steps=10000, method="ref", save_traj=False, verbose=True):
     """
     master function to perform MD simulation, using verlet integration
@@ -244,8 +251,7 @@ def run_md(cube_size=3, n_steps=10000, method="ref", save_traj=False, verbose=Tr
         print(f'Building a {cube_size}x{cube_size}x{cube_size} cube with {cube_size**3} atoms')
     coords = np.array([[x,y,z] for x in range(cube_size) for y in range(cube_size) for z in range(cube_size)], dtype=np.float32)
     # define integration method and force functions
-    integration_func = sim_verlet_gpu if 'gpu' in method else sim_verlet
-    force_func = SUPPORTED_METHODS[method]
+    force_func, integration_func = SUPPORTED_METHODS[method]
     # perform md simulation with integration method
     t0 = time.time()
     if verbose:
