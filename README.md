@@ -48,4 +48,4 @@ Note: It depends on the matplotlib library, which can be installed by
 ```
 conda install matplotlib
 ```
-Resulting running on my PC (8700k + GTX2080) is provided as benchmark.pdf
+As a reference, results from my PC (8700k + GTX2080) are provided as result.log and benchmark.pdf

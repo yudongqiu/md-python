@@ -26,17 +26,36 @@ for method in methods:
             print("Skipping the rest of larger sizes as it takes too long")
             break
 
+# below are ploting part
 import matplotlib.pyplot as plt
+
+fig, ax = plt.subplots()
 
 for m in result:
     x = [n**3 for n in result[m].keys()]
     y = result[m].values()
-    plt.plot(x, y, 'o-', label=m)
+    ax.plot(x, y, 'o-', label=m)
+
+axins = ax.inset_axes([0.3, 0.55, 0.47, 0.43])
+for m in result:
+    x = [n**3 for n in result[m].keys()]
+    y = result[m].values()
+    axins.plot(x, y, 'o-')
+
+axins.set_xticks([n**3 for n in cube_sizes])
+axins.set_xticklabels([rf'{n}$^3$' for n in cube_sizes])
+axins.set_xlim(0, 150)
+axins.set_ylim(0, 0.6)
+
+plt.xlim(0, 1050)
+plt.ylim(0, 30)
 plt.legend()
+ax.indicate_inset_zoom(axins)
 plt.xticks([n**3 for n in cube_sizes], [rf'{n}$^3$' for n in cube_sizes])
 plt.xlabel(r'N atoms (size$^3$)')
 plt.ylabel('Time cost (seconds)')
 plt.title(f'Benchmark with {n_steps} steps of LJ simulation')
+
 plt.savefig('benchmark.pdf')
 
 print("Result ploted as benchmark.pdf")

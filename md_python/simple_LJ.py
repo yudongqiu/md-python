@@ -42,7 +42,7 @@ def ref_LJ(coords):
             forces[j] -= f * dc
     return forces
 
-@jit(nopython=True)
+@jit(nopython=True, cache=True)
 def ref_LJ_jit(coords):
     """
     reference method optimized by numba.jit
